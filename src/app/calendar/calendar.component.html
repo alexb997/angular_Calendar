@@ -1,0 +1,55 @@
+<div class="calendar-container">
+    <div class="calendar-header">
+      <button mat-icon-button (click)="previousMonth()">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span>{{ monthsOfYear[currentMonth] }} {{ currentYear }}</span>
+      <button mat-icon-button (click)="nextMonth()">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+  
+    <div class="calendar-grid">
+      <div class="calendar-day" *ngFor="let day of daysOfWeek">{{ day }}</div>
+      <div 
+        class="calendar-date" 
+        *ngFor="let date of calendarDates"
+        [ngClass]="{'empty': date === null}"
+        (click)="selectDate(date)">
+        <span *ngIf="date !== null">{{ date }}</span>
+      </div>
+    </div>
+  
+    <div *ngIf="selectedDate" class="appointment-section">
+      <div class="appointment-form">
+        <h3>Appointments for {{ selectedDate }}</h3>
+        <form [formGroup]="appointmentForm" (ngSubmit)="addAppointment()">
+          <mat-form-field appearance="fill">
+            <mat-label>Time</mat-label>
+            <input matInput formControlName="time" type="time">
+          </mat-form-field>
+          <mat-form-field >
+            <mat-label>Description</mat-label>
+            <input matInput formControlName="description">
+          </mat-form-field>
+          <button mat-raised-button color="primary" type="submit">Add Appointment</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="appointment-list">
+    <h3>Appointments for {{ selectedDate }}</h3>
+    <div *ngFor="let appointment of getAppointmentsForDate(selectedDate!)">
+      <div 
+        class="appointment-item"
+        cdkDrag 
+        (cdkDragMoved)="moveAppointment(selectedDate!, appointment.id, appointment.time)">
+        <strong>{{ appointment.time }}</strong>: {{ appointment.description }}
+        <button mat-icon-button (click)="deleteAppointment(selectedDate!, appointment.id)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+  
