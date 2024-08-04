@@ -10,8 +10,9 @@ import { CommonModule } from '@angular/common';
 
 interface Appointment {
   id: number;
-  time: string;
+  time: string;  
   description: string;
+  views: number; 
 }
 
 @Component({
@@ -30,10 +31,14 @@ interface Appointment {
   styleUrls: ['./calendar.component.css']
 })
 export class CalendarComponent {
+  
   currentMonth: number = new Date().getMonth();
   currentYear: number = new Date().getFullYear();
   selectedDate: string | null = null;
   appointmentForm: FormGroup;
+  isEditing: boolean = false;
+  editingAppointmentId: number | null = null;
+  view: 'monthly' | 'weekly' | 'daily' = 'monthly';
   daysOfWeek = ['Mon','Tue','Wed','Thur','Fri','Sat','Sun'];
   monthsOfYear =['January','February','March','April','May','June','July','August','September','October','Novembr','December'];
   calendarDates: (number | null)[] = [];
@@ -65,12 +70,40 @@ export class CalendarComponent {
   addAppointment() {
     if (this.selectedDate && this.appointmentForm.valid) {
       const { time, description } = this.appointmentForm.value;
-      const id = new Date().getTime(); // Mock ID generation
+      const id = this.isEditing ? this.editingAppointmentId : new Date().getTime(); // Mock ID generation
+      const formattedTime = this.formatTime(time);
+      
       if (!this.appointments[this.selectedDate]) {
         this.appointments[this.selectedDate] = [];
       }
-      this.appointments[this.selectedDate].push({ id, time, description });
+      
+      if (this.isEditing) {
+        this.appointments[this.selectedDate] = this.appointments[this.selectedDate].map(appointment => 
+          appointment.id === id ? { id, time: formattedTime, description, views: appointment.views } : appointment
+        );
+        this.isEditing = false;
+        this.editingAppointmentId = null;
+      } else {
+        this.appointments[this.selectedDate].push({ id, time: formattedTime, description, views: 0 });
+      }
+      this.saveAppointments();
       this.appointmentForm.reset();
+    }
+  }
+
+  formatTime(time: string): string {
+    return time; // No changes for 24-hour format
+  }
+
+  editAppointment(date: string, id: number) {
+    const appointment = this.appointments[date].find(appt => appt.id === id);
+    if (appointment) {
+      this.appointmentForm.setValue({
+        time: appointment.time,
+        description: appointment.description
+      });
+      this.isEditing = true;
+      this.editingAppointmentId = id;
     }
   }
 
@@ -89,8 +122,27 @@ export class CalendarComponent {
     }
   }
 
+  incrementViews(date: string, id: number) {
+    const appointment = this.appointments[date].find(appt => appt.id === id);
+    if (appointment) {
+      appointment.views++;
+      this.saveAppointments(); // Save to local storage
+    }
+  }
+
   getAppointmentsForDate(date: string) {
     return this.appointments[date] || [];
+  }
+
+  loadAppointments() {
+    const storedAppointments = localStorage.getItem('appointments');
+    if (storedAppointments) {
+      this.appointments = JSON.parse(storedAppointments);
+    }
+  }
+
+  saveAppointments() {
+    localStorage.setItem('appointments', JSON.stringify(this.appointments));
   }
 
   previousMonth() {
