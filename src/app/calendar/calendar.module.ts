@@ -8,7 +8,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { DragDropModule } from '@angular/cdk/drag-drop';
-
 const routes: Routes = [
   { path: '', component: CalendarComponent }
 ];
