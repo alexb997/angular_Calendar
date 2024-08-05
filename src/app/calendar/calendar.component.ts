@@ -177,7 +177,7 @@ export class CalendarComponent implements OnInit {
   scheduleNotification(date: string, time: string, description: string) {
     const appointmentTime = new Date(`${date}T${time}`);
     const now = new Date();
-    const notificationTime = new Date(appointmentTime.getTime() - 10 * 60 * 1000); // 10 minutes before appointment time
+    const notificationTime = new Date(appointmentTime.getTime() - 10 * 60 * 1000); 
 
     if (notificationTime > now) {
       const delay = notificationTime.getTime() - now.getTime();
