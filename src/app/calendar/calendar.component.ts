@@ -14,6 +14,7 @@ interface Appointment {
   time: string;
   description: string;
   views: number;
+  recurrence?: 'daily' | 'weekly' | 'monthly';
 }
 
 @Component({
@@ -40,22 +41,40 @@ export class CalendarComponent implements OnInit {
   isEditing: boolean = false;
   editingAppointmentId: number | null = null;
   view: 'monthly' | 'weekly' | 'daily' = 'monthly';
+  searchTerm: string = '';
 
   daysOfWeek = ['Mon','Tue','Wed','Thur','Fri','Sat','Sun'];
   monthsOfYear =['January','February','March','April','May','June','July','August','September','October','Novembr','December'];
   calendarDates: (number | null)[] = [];
   appointments: { [key: string]: Appointment[] } = {};
+  filteredAppointments: { [key: string]: Appointment[] } = {};
 
   constructor(private fb: FormBuilder) {
     this.appointmentForm = this.fb.group({
       time: ['', Validators.required],
-      description: ['', Validators.required]
+      description: ['', Validators.required],
+      recurrence: ['none']
     });
   }
 
   ngOnInit() {
     this.loadAppointments();
     this.loadCalendar();
+    this.requestNotificationPermission();
+  }
+
+  requestNotificationPermission() {
+    if ('Notification' in window) {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          console.log('Notification permission granted.');
+        } else {
+          console.log('Notification permission denied.');
+        }
+      });
+    } else {
+      console.log('Browser does not support notifications.');
+    }
   }
 
   setView(view: 'monthly' | 'weekly' | 'daily') {
@@ -106,7 +125,7 @@ export class CalendarComponent implements OnInit {
 
   addAppointment() {
     if (this.selectedDate && this.appointmentForm.valid) {
-      const { time, description } = this.appointmentForm.value;
+      const { time, description, recurrence } = this.appointmentForm.value;
       const id = this.isEditing ? this.editingAppointmentId! : new Date().getTime();
       const formattedTime = this.formatTime(time);
       
@@ -116,15 +135,16 @@ export class CalendarComponent implements OnInit {
       
       if (this.isEditing) {
         this.appointments[this.selectedDate] = this.appointments[this.selectedDate].map(appointment => 
-          appointment.id === id ? { id, time: formattedTime, description, views: appointment.views } : appointment
+          appointment.id === id ? { id, time: formattedTime, description, views: appointment.views, recurrence } : appointment
         );
         this.isEditing = false;
         this.editingAppointmentId = null;
       } else {
-        this.appointments[this.selectedDate].push({ id, time: formattedTime, description, views: 0 });
+        this.appointments[this.selectedDate].push({ id, time: formattedTime, description, views: 0, recurrence });
       }
-      this.saveAppointments(); 
+      this.saveAppointments();
       this.scheduleNotification(this.selectedDate, time, description);
+      this.scheduleRecurringAppointments(id, formattedTime, description, recurrence);
       this.appointmentForm.reset();
     }
   }
@@ -134,7 +154,8 @@ export class CalendarComponent implements OnInit {
     if (appointment) {
       this.appointmentForm.setValue({
         time: appointment.time,
-        description: appointment.description
+        description: appointment.description,
+        recurrence: appointment.recurrence || 'none'
       });
       this.isEditing = true;
       this.editingAppointmentId = id;
@@ -145,25 +166,31 @@ export class CalendarComponent implements OnInit {
     const appointment = this.appointments[date].find(appt => appt.id === id);
     if (appointment) {
       appointment.views++;
-      this.saveAppointments(); 
+      this.saveAppointments();
     }
   }
 
   formatTime(time: string): string {
-    return time; 
+    return time;
   }
 
   deleteAppointment(date: string, id: number) {
     if (this.appointments[date]) {
       this.appointments[date] = this.appointments[date].filter(appointment => appointment.id !== id);
-      this.saveAppointments(); 
+      this.saveAppointments();
     }
   }
 
   moveAppointment(date: string, id: number, time: string) {
+    
   }
 
   getAppointmentsForDate(date: string) {
+    if (this.searchTerm) {
+      return this.appointments[date]?.filter(appointment => 
+        appointment.description.toLowerCase().includes(this.searchTerm.toLowerCase())
+      ) || [];
+    }
     return this.appointments[date] || [];
   }
 
@@ -174,10 +201,14 @@ export class CalendarComponent implements OnInit {
     }
   }
 
+  saveAppointments() {
+    localStorage.setItem('appointments', JSON.stringify(this.appointments));
+  }
+
   scheduleNotification(date: string, time: string, description: string) {
     const appointmentTime = new Date(`${date}T${time}`);
     const now = new Date();
-    const notificationTime = new Date(appointmentTime.getTime() - 10 * 60 * 1000); 
+    const notificationTime = new Date(appointmentTime.getTime() - 10 * 60 * 1000);
 
     if (notificationTime > now) {
       const delay = notificationTime.getTime() - now.getTime();
@@ -195,9 +226,44 @@ export class CalendarComponent implements OnInit {
     }
   }
 
+  searchAppointments() {
+    this.filteredAppointments = {};
+    for (const date in this.appointments) {
+      const filtered = this.appointments[date].filter(appointment =>
+        appointment.description.toLowerCase().includes(this.searchTerm.toLowerCase())
+      );
+      if (filtered.length > 0) {
+        this.filteredAppointments[date] = filtered;
+      }
+    }
+  }
 
-  saveAppointments() {
-    localStorage.setItem('appointments', JSON.stringify(this.appointments));
+  scheduleRecurringAppointments(id: number, time: string, description: string, recurrence: 'daily' | 'weekly' | 'monthly') {
+    if (recurrence && recurrence !== 'none') {
+      const currentDate = new Date(this.selectedDate!);
+      let nextDate = new Date(currentDate);
+
+      for (let i = 0; i < 12; i++) {
+        switch (recurrence) {
+          case 'daily':
+            nextDate.setDate(currentDate.getDate() + 1);
+            break;
+          case 'weekly':
+            nextDate.setDate(currentDate.getDate() + 7);
+            break;
+          case 'monthly':
+            nextDate.setMonth(currentDate.getMonth() + 1);
+            break;
+        }
+
+        const formattedDate = `${nextDate.getFullYear()}-${nextDate.getMonth() + 1}-${nextDate.getDate()}`;
+        if (!this.appointments[formattedDate]) {
+          this.appointments[formattedDate] = [];
+        }
+        this.appointments[formattedDate].push({ id, time, description, views: 0, recurrence });
+      }
+      this.saveAppointments();
+    }
   }
 
   previousMonth() {
